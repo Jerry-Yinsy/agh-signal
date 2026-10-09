@@ -6,6 +6,30 @@
 前置状态（2026-10-09 核对）：git 2.55.0 已装；`gh` 命令行未安装；git 全局身份未配置；
 D 盘项目还不是 git 仓库。
 
+**从压缩包同步项目时注意**：新版压缩包带顶层 `agh-signal\` 目录，正确做法是
+
+```powershell
+Expand-Archive -Path '<交付目录>\agh-signal-package.zip' -DestinationPath 'D:\dev\agnes-project' -Force
+# 结果：D:\dev\agnes-project\agh-signal\...
+```
+
+早期版本的压缩包**不带**顶层目录，直接解到 `D:\dev\agnes-project` 会把 `src\ tools\ docs\`
+散落到父目录里；如果已经发生，按下面的方式并入项目目录再删除散落副本（先看清单再删，别误删证据）：
+
+```powershell
+$src = 'D:\dev\agnes-project'
+$dst = 'D:\dev\agnes-project\agh-signal'
+Get-ChildItem $src -Force | Where-Object { $_.Name -in @('artifacts','configs','docs','plugin','src','tools') }
+
+foreach ($d in @('artifacts','configs','docs','plugin','src','tools')) {
+  robocopy "$src\$d" "$dst\$d" /E /IS /IT /NFL /NDL /NJH /NJS /NP | Out-Null
+}
+foreach ($f in @('.gitignore','.gitattributes','LICENSE','README.md','run-demo.ps1')) {
+  Copy-Item "$src\$f" "$dst\$f" -Force
+}
+# 确认项目目录已齐全后，再删父目录里的散落副本（evidence 在 agh-signal\artifacts\evidence，别删错）
+```
+
 ---
 
 ## 第 0 步：配置 git 身份（必需）

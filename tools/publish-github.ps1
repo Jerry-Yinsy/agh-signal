@@ -31,6 +31,11 @@ $ErrorActionPreference = 'Stop'
 if (-not (Test-Path -LiteralPath $ProjectDir)) { throw "找不到项目目录：$ProjectDir" }
 Set-Location -LiteralPath $ProjectDir
 
+# 调用外部程序（git）时放开 Stop：git 往 stderr 写一行就会被当成终止错误，
+# 例如"没有 origin 远程"本来是正常分支，却会让脚本直接崩掉。
+# 下面所有成败判断改为显式检查退出码。
+$ErrorActionPreference = 'Continue'
+
 Write-Host '[1/6] 初始化仓库' -ForegroundColor Cyan
 if (-not (Test-Path -LiteralPath (Join-Path $ProjectDir '.git'))) {
   git init -b $Branch | Out-Null
@@ -97,8 +102,11 @@ if ($NoPush -or -not $RepoUrl) {
 }
 
 Write-Host '[6/6] 关联远程并推送' -ForegroundColor Cyan
-$existing = git remote get-url origin 2>$null
-if ($existing) {
+# 用 `git remote` 列名字判断，而不是 `git remote get-url origin`：
+# 后者在 origin 不存在时会往 stderr 写错误，容易在 Stop 模式下误伤脚本。
+$remotes = @(git remote)
+if ($remotes -contains 'origin') {
+  $existing = (git remote get-url origin 2>$null)
   if ($existing -ne $RepoUrl) { git remote set-url origin $RepoUrl }
   Write-Host ("      origin 已指向 {0}" -f $RepoUrl)
 } else {
@@ -106,6 +114,16 @@ if ($existing) {
   Write-Host ("      已添加 origin {0}" -f $RepoUrl)
 }
 git push -u origin $Branch
+if ($LASTEXITCODE -ne 0) {
+  throw @"
+git push 失败（退出码 $LASTEXITCODE）。常见原因与处理：
+  - 未授权或凭据过期：重新执行 git push，让凭据管理器弹窗登录 GitHub；
+  - 仓库地址不对：确认是 https://github.com/<你的用户名>/agh-signal.git；
+  - 远程已有提交（建仓时勾了 README/.gitignore/license）：先执行 git pull --rebase origin $Branch 再推送；
+  - 网络/代理问题：确认能打开 github.com。
+提交本身已经完成，修好上面任一问题后重跑本脚本即可（不会重复提交）。
+"@
+}
 Write-Host ''
 Write-Host '推送完成。建议再核对一次：' -ForegroundColor Green
 Write-Host '  git ls-files | Select-String -Pattern "agh-home|evidence|\.html$|\.db$"   # 应无输出'
