@@ -1,0 +1,18 @@
+{
+  "scenario": {
+    "id": "oversaturated",
+    "name": "过饱和（需求 ×2.0）",
+    "kind": "failure",
+    "note": "失败样例：必须被判定为不可行并给出降级建议，不允许输出错误方案"
+  },
+  "designSpace": {
+    "cycle": "60–160s（步长 2s）",
+    "greenSplit": "南北绿灯 8s–(C−损失时间−8s)"
+  },
+  "evaluated": 0,
+  "feasible": false,
+  "top": [],
+  "pareto": [],
+  "fairness": null,
+  "comparison": null
+}

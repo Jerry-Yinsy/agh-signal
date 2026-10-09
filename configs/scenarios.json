@@ -1,0 +1,59 @@
+[
+  {
+    "id": "normal",
+    "name": "平峰基准工况",
+    "kind": "normal",
+    "note": "设计工况：用于寻优与基线对比",
+    "arrivals": {
+      "N": { "through": 620, "left": 150 },
+      "S": { "through": 560, "left": 140 },
+      "E": { "through": 430, "left": 110 },
+      "W": { "through": 450, "left": 120 }
+    },
+    "saturationFlow": { "through": 1800, "left": 1200 },
+    "heavyVehicleShare": 0.04,
+    "lostTimePerPhase": 4,
+    "occupancy": 1.3,
+    "seed": 20261005
+  },
+  {
+    "id": "peak",
+    "name": "晚高峰（需求 ×1.3）",
+    "kind": "boundary",
+    "note": "边界工况：整体需求放大 30%",
+    "scale": 1.3,
+    "base": "normal"
+  },
+  {
+    "id": "skew",
+    "name": "潮汐偏斜（北进口 ×1.6）",
+    "kind": "boundary",
+    "note": "边界工况：单进口需求显著偏斜，考验配时鲁棒性",
+    "base": "normal",
+    "scaleByApproach": { "N": 1.6, "S": 0.9 }
+  },
+  {
+    "id": "heavy",
+    "name": "重车比例升高（12%）",
+    "kind": "boundary",
+    "note": "边界工况：大车比例上升导致饱和流率下降",
+    "base": "normal",
+    "heavyVehicleShare": 0.12
+  },
+  {
+    "id": "incident",
+    "name": "事故降容（北进口通行能力 −40%）",
+    "kind": "boundary",
+    "note": "边界工况：单进口饱和流率下降，检验降级策略",
+    "base": "normal",
+    "saturationScaleByApproach": { "N": 0.6 }
+  },
+  {
+    "id": "oversaturated",
+    "name": "过饱和（需求 ×2.0）",
+    "kind": "failure",
+    "note": "失败样例：必须被判定为不可行并给出降级建议，不允许输出错误方案",
+    "scale": 2.0,
+    "base": "normal"
+  }
+]

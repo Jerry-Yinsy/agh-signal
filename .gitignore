@@ -1,0 +1,33 @@
+# ---- 绝不入库：AGH 运行数据与私有导出 ----
+artifacts/evidence/
+artifacts/sumo/
+*.html
+*.db
+*.db-wal
+*.db-shm
+agh-home/
+.agh/
+.env
+.env.*
+
+# ---- 依赖与构建产物 ----
+node_modules/
+.cache/
+.pnpm-store/
+*.log
+
+# ---- 临时与打包 ----
+work/
+tmp/
+*.tmp
+*.zip
+
+# ---- 编辑器与系统 ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 说明：artifacts/ 下的 report-*.md、verification.md/json、optimize-*.json 是纯指标产物，
+# 可以公开（它们不含会话正文与个人信息）；evidence/ 与 sumo/ 目录已被上面的规则排除。

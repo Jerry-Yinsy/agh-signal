@@ -1,0 +1,87 @@
+{
+  "scenario": "normal",
+  "generatedAt": "2026-10-08T14:23:55.307Z",
+  "status": "ok",
+  "checks": [
+    {
+      "id": "consistency",
+      "status": "ok",
+      "detail": "总延误 11.966 veh·h、车均延误 16.7s 可由流向明细重算复现"
+    },
+    {
+      "id": "webster-agreement",
+      "status": "ok",
+      "detail": "网格最优 C=60s / Webster C=60s（相差 0s）；车均延误 16.7s vs 16.7s（0.0%）"
+    },
+    {
+      "id": "reproducibility",
+      "status": "ok",
+      "detail": "seed=20261005 两次生成哈希一致（7a031823412c…），换 seed 后改变",
+      "hashes": {
+        "first": "7a031823412cdf464b6bca5348655e0e3c742898495e32642d48494e336672be",
+        "second": "7a031823412cdf464b6bca5348655e0e3c742898495e32642d48494e336672be",
+        "otherSeed": "77429e530eb271f34ab1d1c8ed4a6918423a9d3d80844dfef40d638b9ffa57cb"
+      }
+    },
+    {
+      "id": "boundary-conditions",
+      "status": "ok",
+      "detail": "4 个边界工况均给出结论：不可行时由重新寻优或降级策略兜底",
+      "rows": [
+        {
+          "scenario": "peak",
+          "name": "晚高峰（需求 ×1.3）",
+          "inheritedFeasible": true,
+          "inheritedViolations": [],
+          "inheritedAvgDelaySec": 27.52,
+          "reoptimizedAvgDelaySec": 27.1,
+          "reoptimizeGainPct": 1.53,
+          "action": "沿用基准配时可接受"
+        },
+        {
+          "scenario": "skew",
+          "name": "潮汐偏斜（北进口 ×1.6）",
+          "inheritedFeasible": false,
+          "inheritedViolations": [
+            "最大饱和度 1.109 超过上限 0.95"
+          ],
+          "inheritedAvgDelaySec": null,
+          "reoptimizedAvgDelaySec": 28.43,
+          "reoptimizeGainPct": null,
+          "action": "基准配时失效：切换该工况专属配时或走降级策略"
+        },
+        {
+          "scenario": "heavy",
+          "name": "重车比例升高（12%）",
+          "inheritedFeasible": true,
+          "inheritedViolations": [],
+          "inheritedAvgDelaySec": 16.95,
+          "reoptimizedAvgDelaySec": 16.95,
+          "reoptimizeGainPct": 0,
+          "action": "沿用基准配时可接受"
+        },
+        {
+          "scenario": "incident",
+          "name": "事故降容（北进口通行能力 −40%）",
+          "inheritedFeasible": false,
+          "inheritedViolations": [
+            "最大饱和度 1.155 超过上限 0.95"
+          ],
+          "inheritedAvgDelaySec": null,
+          "reoptimizedAvgDelaySec": 35.16,
+          "reoptimizeGainPct": null,
+          "action": "基准配时失效：切换该工况专属配时或走降级策略"
+        }
+      ]
+    },
+    {
+      "id": "failure-path",
+      "status": "ok",
+      "detail": "过饱和工况被正确拒绝（可行方案数 0），并给出原因：最大饱和度 1.521 超过上限 0.95",
+      "reasons": [
+        "最大饱和度 1.521 超过上限 0.95",
+        "总流率比 Y ≥ 1，路口已达过饱和，配时无法解决"
+      ]
+    }
+  ]
+}

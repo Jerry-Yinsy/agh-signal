@@ -1,0 +1,17 @@
+{
+  "name": "@agh-signal/traffic-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": "./index.mjs",
+  "agnes": {
+    "plugins": [
+      {
+        "export": "trafficTools",
+        "id": "ext:agh-signal/traffic-tools",
+        "inject": ["extension"]
+      }
+    ]
+  }
+}

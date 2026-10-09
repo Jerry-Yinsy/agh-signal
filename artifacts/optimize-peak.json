@@ -1,0 +1,185 @@
+{
+  "scenario": {
+    "id": "peak",
+    "name": "晚高峰（需求 ×1.3）",
+    "kind": "boundary",
+    "note": "边界工况：整体需求放大 30%"
+  },
+  "designSpace": {
+    "cycle": "60–160s（步长 2s）",
+    "greenSplit": "南北绿灯 8s–(C−损失时间−8s)"
+  },
+  "evaluated": 304,
+  "feasible": true,
+  "top": [
+    {
+      "cycle": 64,
+      "greenNS": 32,
+      "greenEW": 24,
+      "avgDelaySec": 27.1,
+      "totalDelayVehHours": 25.249,
+      "maxVc": 0.901,
+      "worstApproachDelaySec": 32.56
+    },
+    {
+      "cycle": 68,
+      "greenNS": 34,
+      "greenEW": 26,
+      "avgDelaySec": 27.1,
+      "totalDelayVehHours": 25.244,
+      "maxVc": 0.901,
+      "worstApproachDelaySec": 31.05
+    },
+    {
+      "cycle": 74,
+      "greenNS": 38,
+      "greenEW": 28,
+      "avgDelaySec": 27.19,
+      "totalDelayVehHours": 25.333,
+      "maxVc": 0.8773,
+      "worstApproachDelaySec": 34.03
+    },
+    {
+      "cycle": 70,
+      "greenNS": 36,
+      "greenEW": 26,
+      "avgDelaySec": 27.2,
+      "totalDelayVehHours": 25.346,
+      "maxVc": 0.8803,
+      "worstApproachDelaySec": 35.76
+    },
+    {
+      "cycle": 72,
+      "greenNS": 36,
+      "greenEW": 28,
+      "avgDelaySec": 27.32,
+      "totalDelayVehHours": 25.452,
+      "maxVc": 0.901,
+      "worstApproachDelaySec": 30.31
+    }
+  ],
+  "pareto": [
+    {
+      "cycle": 64,
+      "greenNS": 32,
+      "avgDelaySec": 27.1,
+      "worstApproachDelaySec": 32.56
+    },
+    {
+      "cycle": 68,
+      "greenNS": 34,
+      "avgDelaySec": 27.1,
+      "worstApproachDelaySec": 31.05
+    },
+    {
+      "cycle": 72,
+      "greenNS": 36,
+      "avgDelaySec": 27.32,
+      "worstApproachDelaySec": 30.31
+    }
+  ],
+  "fairness": {
+    "cycle": 72,
+    "greenNS": 36,
+    "greenEW": 28,
+    "avgDelaySec": 27.32,
+    "worstApproachDelaySec": 30.31,
+    "avgDelayPenaltyPct": 0.81
+  },
+  "comparison": {
+    "baselines": {
+      "current": {
+        "design": {
+          "cycle": 90,
+          "greenNS": 41
+        },
+        "feasible": false,
+        "violations": [
+          "最大饱和度 0.989 超过上限 0.95"
+        ],
+        "metrics": {
+          "cycle": 90,
+          "greenNS": 41,
+          "greenEW": 41,
+          "avgDelaySec": 73.75,
+          "totalDelayVehHours": 68.715,
+          "personHours": 89.329,
+          "avgQueueVeh": 68.71,
+          "maxQueueVeh": 137.43,
+          "stopRate": 0.5444,
+          "capacityVehPerHour": 5433.9,
+          "avgVc": 0.6172,
+          "maxVc": 0.9889,
+          "criticalFlowRatio": 0.7774,
+          "delayByApproach": {
+            "N": 180.85,
+            "S": 36.24,
+            "E": 22.61,
+            "W": 23.59
+          }
+        }
+      },
+      "webster": {
+        "design": {
+          "cycle": 76,
+          "greenNS": 40
+        },
+        "feasible": true,
+        "violations": [],
+        "metrics": {
+          "cycle": 76,
+          "greenNS": 40,
+          "greenEW": 28,
+          "avgDelaySec": 27.9,
+          "totalDelayVehHours": 25.994,
+          "personHours": 33.793,
+          "avgQueueVeh": 25.99,
+          "maxQueueVeh": 51.99,
+          "stopRate": 0.5416,
+          "capacityVehPerHour": 5336.2,
+          "avgVc": 0.6285,
+          "maxVc": 0.8875,
+          "criticalFlowRatio": 0.7774,
+          "delayByApproach": {
+            "N": 23.87,
+            "S": 18.96,
+            "E": 33.6,
+            "W": 38.93
+          }
+        }
+      }
+    },
+    "best": {
+      "cycle": 64,
+      "greenNS": 32,
+      "greenEW": 24,
+      "metrics": {
+        "cycle": 64,
+        "greenNS": 32,
+        "greenEW": 24,
+        "avgDelaySec": 27.1,
+        "totalDelayVehHours": 25.249,
+        "personHours": 32.824,
+        "avgQueueVeh": 25.25,
+        "maxQueueVeh": 50.5,
+        "stopRate": 0.5538,
+        "capacityVehPerHour": 5218.5,
+        "avgVc": 0.6427,
+        "maxVc": 0.901,
+        "criticalFlowRatio": 0.7774,
+        "delayByApproach": {
+          "N": 28.61,
+          "S": 19.98,
+          "E": 28.42,
+          "W": 32.56
+        }
+      },
+      "worstApproachDelaySec": 32.56
+    },
+    "improvement": {
+      "avgDelaySecAbs": 46.65,
+      "avgDelayPct": 63.25,
+      "totalDelayVehHoursAbs": 43.466
+    }
+  }
+}
