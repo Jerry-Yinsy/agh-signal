@@ -134,11 +134,13 @@ function paragraph(content, options = {}) {
   return `<w:p>${properties}${content}</w:p>`
 }
 
-/** 把一段 run 片段整体加粗，且不产生重复的 rPr。 */
+/**
+ * 把一段 run 片段整体加粗。
+ * inlineRuns 产出的 run 一律带 <w:rPr>（字体/样式），所以只需把 <w:b/> 插到已有的
+ * <w:rPr> 之后。注意不要再插一个 <w:rPr>：重复容器是 schema 非法，Word 会报文件损坏。
+ */
 function boldRuns(xml) {
-  return xml
-    .replace(/<w:r><w:rPr>/g, '<w:r><w:rPr><w:b/>')
-    .replace(/<w:r>(?!<w:rPr>)/g, '<w:r><w:rPr><w:b/></w:rPr>')
+  return xml.replace(/<w:r><w:rPr>/g, '<w:r><w:rPr><w:b/>')
 }
 
 function table(rows) {

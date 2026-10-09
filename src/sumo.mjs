@@ -52,6 +52,16 @@ export function inspectTlLogic(netXml) {
 
 /**
  * 把两相位设计映射为 SUMO 的相位时长。
+ *
+ * 周期守恒（曾出错，务必不要再改回去）：路网里的黄灯/全红相位时长是固定的，不能改。
+ * 因此必须**反推**该路网下真正可分配的绿灯总量：
+ *     totalGreen = cycle − 实际清空时间合计
+ * 再按设计的 NS:EW 绿灯比例（g_NS : g_EW = g_NS : (C − 模型损失时间 − g_NS)）分配。
+ * 历史 bug：直接把 g_NS/g_EW 当成绿灯总量写进去，导致 SUMO 里的周期 = 设计周期 + 清空时间差额，
+ * 注入仿真的方案与被分析模型评估的方案不是同一个，交叉验证在方法上不成立。
+ *
+ * 若路网清空时间与模型假设的 lostTimePerPhase 不一致，两者确实无法同时满足；
+ * 此时按路网实际清空时间保证周期守恒，并在返回值里给出 mismatch 供调用方写进报告。
  * 默认约定：把 net 中出现的绿灯相位按顺序分成 NS 组与 EW 组（可通过
  * SIGNAL_LOOP_PHASE_GROUPS="NS,EW" 覆盖）。首次使用请先用 sumo-map 子命令核对。
  */
@@ -69,9 +79,21 @@ export function buildTlLogicOverride(netXml, design, options = {}) {
     assignment.set(phase.index, index < half ? groups[0] : groups[1])
   })
 
-  const lost = 2 * Number(options.lostTimePerPhase ?? 4)
-  const greenEW = design.cycle - lost - design.greenNS
+  const modelLost = 2 * Number(options.lostTimePerPhase ?? 4)
+  const greenEW = design.cycle - modelLost - design.greenNS
   const totals = { NS: design.greenNS, EW: greenEW }
+
+  // 周期守恒：绿灯总量 = 设计周期 − 路网实际清空时间合计（清空相位时长保持不变）
+  const actualClearance = program.phases
+    .filter((phase) => phase.kind !== 'green')
+    .reduce((sum, phase) => sum + phase.duration, 0)
+  const totalGreen = Math.max(0, design.cycle - actualClearance)
+
+  const requestedGreen = Math.max(0, design.greenNS) + Math.max(0, greenEW)
+  const shareNS = requestedGreen > 0 ? Math.max(0, design.greenNS) / requestedGreen : 0.5
+  const greenNS = Math.round((totalGreen * shareNS) / 2) * 2
+  const greenEW2 = totalGreen - greenNS
+
   const perGroup = { NS: 0, EW: 0 }
   for (const phase of greenPhases) perGroup[assignment.get(phase.index)] += 1
 
@@ -79,25 +101,49 @@ export function buildTlLogicOverride(netXml, design, options = {}) {
   for (const phase of program.phases) {
     if (phase.kind === 'green') {
       const group = assignment.get(phase.index)
-      const duration = Math.max(5, Math.round(totals[group] / Math.max(1, perGroup[group])))
+      const target = group === groups[0] ? greenNS : greenEW2
+      const duration = Math.max(5, Math.round(target / Math.max(1, perGroup[group])))
       phases.push(`        <phase duration="${duration}" state="${phase.state}"/>`)
     } else {
       phases.push(`        <phase duration="${phase.duration}" state="${phase.state}"/>`)
     }
   }
-  return {
+
+  const actualCycle = phases.reduce((sum, line) => sum + Number(/duration="(\d+)"/.exec(line)[1]), 0)
+  const allocations = [perGroup[groups[0]], perGroup[groups[1]]]
+  const splitWarning =
+    greenPhases.length % 2 === 0
+      ? null
+      : `绿灯相位 ${greenPhases.length} 个，无法在两个方向间均分（按序前 ${half} 个归 ${groups[0]}、` +
+        `其余归 ${groups[1]}，实际 ${allocations[0]}:${allocations[1]}）。相位顺序是按索引猜的，` +
+        '请用 sumo-map 核对 state 字符串确认放行方向，必要时用 SIGNAL_LOOP_PHASE_GROUPS 调整。'
+  const result = {
     programId: program.id,
     phases,
-    xml: [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<additional xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/additional_file.xsd">',
-      `  <tlLogic id="${program.id}" type="static" programID="${program.id}" offset="0">`,
-      ...phases,
-      '  </tlLogic>',
-      '</additional>',
-      '',
-    ].join('\n'),
+    designCycle: design.cycle,
+    actualCycle,
+    actualClearance,
+    modelLostTime: modelLost,
+    greenShare: { NS: greenNS, EW: greenEW2 },
+    greenPhaseAllocation: { [groups[0]]: allocations[0], [groups[1]]: allocations[1] },
+    splitWarning,
+    mismatch:
+      actualClearance === modelLost
+        ? null
+        : `路网清空时间合计 ${actualClearance}s，模型假设的损失时间 ${modelLost}s，` +
+          `差异 ${actualClearance - modelLost}s 已通过调整绿灯总量吸收，周期仍保持 ${actualCycle}s；` +
+          `建议把工况的 lostTimePerPhase 改为 ${actualClearance / 2}s 使两者口径一致。`,
   }
+  result.xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<additional xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/additional_file.xsd">',
+    `  <tlLogic id="${program.id}" type="static" programID="${program.id}" offset="0">`,
+    ...phases,
+    '  </tlLogic>',
+    '</additional>',
+    '',
+  ].join('\n')
+  return result
 }
 
 export function parseTripinfo(xml) {
@@ -140,6 +186,16 @@ export function simulateWithSumo({ directory, scenario, design, seed, timeoutMs 
 
   writeFileSync(routeFile, buildRoutesXml(scenario), 'utf8')
   const override = buildTlLogicOverride(netFile, design, { lostTimePerPhase: scenario.lostTimePerPhase })
+  if (override.actualCycle !== design.cycle) {
+    // 周期守恒是交叉验证成立的前提；真出现偏差就不要给出"看起来验证过了"的结果。
+    return {
+      available: false,
+      reason:
+        `相位映射后 SUMO 周期 ${override.actualCycle}s ≠ 设计周期 ${design.cycle}s，` +
+        '注入仿真的方案与模型评估的方案不是同一个，已中止以免给出无效的交叉验证结论。',
+      override: { designCycle: override.designCycle, actualCycle: override.actualCycle, phases: override.phases },
+    }
+  }
   writeFileSync(additionalFile, override.xml, 'utf8')
   writeFileSync(configFile, buildSumoConfig('net.net.xml', 'routes.rou.xml', 'tls.add.xml'), 'utf8')
 
@@ -157,6 +213,9 @@ export function simulateWithSumo({ directory, scenario, design, seed, timeoutMs 
     configFile,
     tripinfoFile,
     programId: override.programId,
+    cycle: { design: override.designCycle, actual: override.actualCycle },
+    greenShare: override.greenShare,
+    clearanceMismatch: override.mismatch,
     metrics: parseTripinfo(readFileSync(tripinfoFile, 'utf8')),
   }
 }

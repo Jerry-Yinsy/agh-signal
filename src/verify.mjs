@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto'
 import { baselineDesign, evaluateDesign, websterDesign } from './model.mjs'
 import { compareWithBaselines, searchDesigns } from './optimize.mjs'
-import { profiles } from './demand.mjs'
+import { buildRoutesXml, profiles } from './demand.mjs'
 import { resolveScenarios } from './scenarios.mjs'
 
 const hash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
@@ -50,22 +50,45 @@ export function checkWebsterAgreement(scenario) {
     detail:
       `网格最优 C=${grid.top[0].cycle}s / Webster C=${webster.cycle}s（相差 ${cycleGap}s）；` +
       `车均延误 ${grid.top[0].metrics.avgDelaySec}s vs ${evaluated.metrics.avgDelaySec}s（${delayGapPct.toFixed(1)}%）`,
+    caveat:
+      '两条路径共用同一套延误公式（只是周期推导方式不同），因此本项属于**口径一致性核对**，' +
+      '不构成独立验证；真正的独立验证来自 SUMO 微观仿真（见 docs/03）。',
   }
 }
 
-/** 检查 3：复现性（同 seed 两次需求生成必须逐字节一致）。 */
+/**
+ * 检查 3：复现性——对"真正进入仿真的产物"做哈希，而不是对只被自己调用的函数做哈希。
+ *
+ * 这里刻意验证 `profiles()`（需求波动剖面）与 `buildRoutesXml()`（SUMO 车流）两个下游产物：
+ * 两者都是确定性生成，同 seed 必须逐字节一致，换 seed 必须改变——否则"同 seed 结果一致"这句
+ * 结论就无从谈起。历史版本只对 profiles() 调两次做比较，输入不变必然相等，等于什么都没验证。
+ */
 export function checkReproducibility(scenario) {
-  const first = hash(profiles(scenario))
-  const second = hash(profiles(scenario))
-  const other = hash(profiles({ ...scenario, seed: scenario.seed + 1 }))
-  const ok = first === second && first !== other
+  const route = (item) => hash(buildRoutesXml(item))
+  const routeFirst = route(scenario)
+  const routeSecond = route(scenario)
+  const routeOtherSeed = route({ ...scenario, seed: scenario.seed + 1 })
+  const profileFirst = hash(profiles(scenario))
+  const profileOtherSeed = hash(profiles({ ...scenario, seed: scenario.seed + 1 }))
+
+  const checks = {
+    routesStable: routeFirst === routeSecond,
+    routesSeedSensitive: routeFirst !== routeOtherSeed,
+    profilesSeedSensitive: profileFirst !== profileOtherSeed,
+  }
+  const ok = Object.values(checks).every(Boolean)
   return {
     id: 'reproducibility',
     status: ok ? 'ok' : 'fail',
     detail: ok
-      ? `seed=${scenario.seed} 两次生成哈希一致（${first.slice(0, 12)}…），换 seed 后改变`
-      : '同 seed 未能复现或不同 seed 结果相同',
-    hashes: { first, second, otherSeed: other },
+      ? `seed=${scenario.seed}：SUMO 车流（${routeFirst.slice(0, 12)}…）重复生成一致；` +
+        `换 seed 后车流与需求剖面均改变（已排除"换 seed 无影响"的实现错误）`
+      : `复现性不成立：${Object.entries(checks)
+          .filter(([, value]) => !value)
+          .map(([key]) => key)
+          .join('、')}`,
+    hashes: { routes: routeFirst, routesOtherSeed: routeOtherSeed, profiles: profileFirst, profilesOtherSeed: profileOtherSeed },
+    checks,
   }
 }
 
@@ -130,10 +153,14 @@ export function runVerification() {
     checkFailurePath(),
   ]
   const failed = checks.filter((check) => check.status === 'fail')
+  const warned = checks.filter((check) => check.status === 'warn')
   return {
     scenario: base.id,
     generatedAt: new Date().toISOString(),
     status: failed.length === 0 ? 'ok' : 'fail',
+    // warn 不算失败，但必须显式暴露：否则"5 项全过"会把警告一起吞掉。
+    warningCount: warned.length,
+    warnings: warned.map((check) => `${check.id}: ${check.detail}`),
     checks,
   }
 }

@@ -30,6 +30,10 @@ export function profiles(scenario, slices = 8, jitter = 0.12) {
   }))
 }
 
+/** 时间切片数固定为 8（8 × 900s = 2 小时），周期内每片占 1 小时流量的 1/4。 */
+export const SLICE_COUNT = 8
+export const SLICE_SECONDS = 900
+
 const EDGE_OF = {
   N: { from: 'north', to: 'C' },
   S: { from: 'south', to: 'C' },
@@ -39,32 +43,45 @@ const EDGE_OF = {
 
 /**
  * 生成 SUMO 车流文件（rou.xml）。
- * 说明：车流按进口方向与转向拆成多条 flow，begin/end 覆盖 15 分钟时段，
- * vehsPerHour 由工况需求与波动剖面给出，因此"同一 seed 同一车流"可复现。
+ *
+ * 单位口径（曾出错，务必不要再改回去）：`volume` 是 **veh/h（整小时流量）**，而每条 flow 只覆盖
+ * 一个 900s 时段。SUMO 的 vehsPerHour 表示"以该小时率发车"，实际发车数 = vehsPerHour × 时长/3600。
+ * 因此要把整小时流量放进 900s 的 flow，应取 vehsPerHour = volume（该时段发车 volume/4 辆），
+ * 8 段合计恰好 2 小时 × volume = 2×volume 辆。若写成 volume/8 会少 8 倍，写成 volume×8（历史 bug）
+ * 会多 8 倍，都会让 SUMO 交叉验证失效。
+ *
+ * 车型：重车不是"整条 flow 换车型"，而是按 heavyVehicleShare 混流——
+ * 同一时段生成 heavy（probability=share）与 car（probability=1-share）两条 flow。
  */
 export function buildRoutesXml(scenario, options = {}) {
-  const sliceSeconds = Number(options.sliceSeconds ?? 900)
-  const slices = 8
-  const random = createRandom(scenario.seed)
+  const sliceSeconds = Number(options.sliceSeconds ?? SLICE_SECONDS)
+  const jitter = Number(options.jitter ?? 0.12)
+  const profilesByMovement = profiles(scenario, SLICE_COUNT, jitter)
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">',
     '  <vType id="car" vClass="passenger" length="4.5" maxSpeed="13.9" accel="2.6" decel="4.5" sigma="0.5"/>',
     `  <vType id="heavy" vClass="truck" length="9.0" maxSpeed="11.0" accel="1.3" decel="3.5" sigma="0.5"/>`,
   ]
-  const heavy = Number(scenario.heavyVehicleShare ?? 0)
-  for (const movement of movementList(scenario)) {
+  const heavy = Math.min(1, Math.max(0, Number(scenario.heavyVehicleShare ?? 0)))
+  for (const movement of profilesByMovement) {
     const edge = EDGE_OF[movement.approach]
     const connection = movement.turn === 'left' ? `${edge.from}_left` : `${edge.from}_straight`
-    for (let slice = 0; slice < slices; slice += 1) {
-      const rate = movement.volume * (1 + (random() * 2 - 1) * 0.12)
+    for (let slice = 0; slice < movement.slices.length; slice += 1) {
+      const rate = movement.volume * movement.slices[slice]
       const begin = slice * sliceSeconds
       const end = begin + sliceSeconds
-      lines.push(
-        `  <flow id="f_${movement.approach}_${movement.turn}_${slice}" type="${heavy > 0.06 ? 'heavy' : 'car'}" ` +
-          `begin="${begin}" end="${end}" vehsPerHour="${rate.toFixed(0)}" departLane="best" departSpeed="max" ` +
-          `from="${edge.from}" to="${connection}"/>`,
-      )
+      const common = `begin="${begin}" end="${end}" departLane="best" departSpeed="max" from="${edge.from}" to="${connection}"`
+      if (heavy > 0) {
+        lines.push(
+          `  <flow id="f_${movement.approach}_${movement.turn}_${slice}_heavy" type="heavy" probability="${heavy}" ${common}/>`,
+        )
+      }
+      if (heavy < 1) {
+        lines.push(
+          `  <flow id="f_${movement.approach}_${movement.turn}_${slice}_car" type="car" vehsPerHour="${rate.toFixed(0)}" ${common}/>`,
+        )
+      }
     }
   }
   lines.push('</routes>')

@@ -20,6 +20,7 @@ node --version                 # 需 >= 24.10
 node src/cli.mjs selfcheck                 # 六个工况的最优配时一览
 node src/cli.mjs report --scenario normal  # 生成报告 + 验证证据
 node tools/plugin-selftest.mjs             # AGH 插件免模型自检
+node tools/regression-test.mjs             # 16 项回归测试（不需要装 SUMO）
 ```
 
 期望结果（与本仓库 `artifacts/` 中已提交的产物一致）：
@@ -29,9 +30,12 @@ node tools/plugin-selftest.mjs             # AGH 插件免模型自检
 | `selfcheck` | 6 个工况：normal/peak/skew/heavy/incident 可行，oversaturated 不可行（可行方案数 0） |
 | `report` | 生成 `artifacts/report-normal.md` 与 `artifacts/verification.md`；normal 车均延误 **16.70s**、评估 **835** 个可行方案、较现状固定配时 **−24.16%** |
 | `plugin-selftest` | `"status": "ok"`，列出 5 个 `traffic_*` 工具 |
+| `regression-test` | `"status": "ok"`，16/16 通过 |
 
-复现性：所有随机的部分都由 `configs/scenarios.json` 里的 `seed` 固定（默认 `20261005`），
-同一命令、同一 seed、同一 Node 大版本，结果应逐字节一致。
+复现性：所有随机的部分都由 `configs/scenarios.json` 里的 `seed` 固定（默认 `20261005`）。
+需要注意"可复现"的准确范围：**寻优与评估全流程是确定性的**，同一命令结果完全一致；
+`report-normal.md`、`optimize-*.json` 可逐字节复现；`verification.json/md` 里带生成时间戳，
+因此文件本身逐字节会变，可复现的是其中的检查结论与哈希值。
 
 ---
 
@@ -79,18 +83,24 @@ node tools/plugin-selftest.mjs             # AGH 插件免模型自检
 
 ## 四、验证怎么复核
 
-`node src/cli.mjs verify` 会跑 5 项检查并写入 `artifacts/verification.md`：
+`node src/cli.mjs verify` 会跑 5 项检查并写入 `artifacts/verification.md`（未通过时退出码为 1）：
 
 | 检查 | 做法 | 通过判据 |
 | --- | --- | --- |
 | 自洽性 | 总延误/车均延误由流向明细重算 | 误差 < 0.01s |
 | 交叉验证 | 网格最优 vs Webster 经典公式 | 周期差 ≤ 20s、延误差 ≤ 25% |
-| 复现性 | 同 seed 两次生成 + 换 seed 对比 | 哈希一致且可区分 |
+| 复现性 | 同 seed 两次生成 SUMO 车流 + 需求剖面，并换 seed 对比 | 哈希一致，且换 seed 必须改变 |
 | 边界工况 | 基准配时在 4 个扰动工况下的可行性与收益 | 每个工况都有明确结论 |
 | 失败样例 | 过饱和必须被拒绝 | 可行方案数为 0 且给出原因 |
 
+口径提醒：**交叉验证那项的"独立性"有限**——网格搜索与 Webster 公式共用同一套延误公式，
+只是周期推导路径不同，因此它验证的是口径一致性；真正的独立验证来自 SUMO 微观仿真。
+这条提醒会随检查结论一起写进 `verification.md`，不靠读者自己留意。
+
 SUMO 交叉验证（可选，需要自行安装 SUMO）：`node src/cli.mjs sumo-check` → `node src/cli.mjs sumo-sim --scenario normal --cycle 70 --green-ns 34`，
 判定标准是两套独立方法给出的车均延误差异 ≤ 30% 即视为互证通过（口径差异见 `docs/03`）。
+适配层会保证注入仿真的周期严格等于设计周期；若路网清空时间与模型假设的损失时间不一致，
+它会显式给出 mismatch 提示而不是静默继续。
 
 ---
 
@@ -135,10 +145,16 @@ agh-signal/
 
 1. 分析模型是确定性宏观模型（Webster 延误），不含随机到达波动、行人相位、公交优先、干线协调；
 2. 左转按允许式处理，饱和流率取经验值，未做车道级几何标定；
+   模型把每个"进口 × 转向"当作一个车道组，因此不体现车道数；
 3. 工况流量目前为占位数（正常工况 2580 veh/h），正式使用前应替换为目标路口的公开或实测流量；
-4. SUMO 交叉验证需要本机安装 SUMO，且相位映射需人工核对一次；
-5. 本工具输出的是"配时建议 + 验证证据"，**不直接下发信号机**，不承诺现场直接可用；
-6. 运行环境为 Windows + Node 24，AGH 官方记录的验证平台是 macOS，跨平台差异见 `docs/05`。
+4. 排队指标是按均匀延误推算的**近似值**（平均排队 = Σ 到达率 × 均匀延误；最大排队 = 最不利流向的
+   到达率 × 红灯时长），不含随机波动与溢流回堵，不能直接当进口道长度设计依据；
+5. SUMO 交叉验证需要本机安装 SUMO，且相位映射需人工核对一次；
+   适配层保证了周期守恒，但路网清空时间与模型损失时间的差异会以 `mismatch` 形式提示，
+   需在报告中披露口径；
+6. 本工具输出的是"配时建议 + 验证证据"，**不直接下发信号机**，不承诺现场直接可用；
+7. 运行环境为 Windows + Node 24，AGH 官方记录的验证平台是 macOS，跨平台差异见 `docs/05`；
+   `start-agnes.ps1` 的默认路径指向作者本机，换机器请用其参数（`-Repo` / `-AghHome` / `-ProjectDir`）覆盖。
 
 ## 九、许可
 

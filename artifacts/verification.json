@@ -1,7 +1,9 @@
 {
   "scenario": "normal",
-  "generatedAt": "2026-10-08T14:23:55.307Z",
+  "generatedAt": "2026-10-09T16:22:18.520Z",
   "status": "ok",
+  "warningCount": 0,
+  "warnings": [],
   "checks": [
     {
       "id": "consistency",
@@ -11,16 +13,23 @@
     {
       "id": "webster-agreement",
       "status": "ok",
-      "detail": "网格最优 C=60s / Webster C=60s（相差 0s）；车均延误 16.7s vs 16.7s（0.0%）"
+      "detail": "网格最优 C=60s / Webster C=60s（相差 0s）；车均延误 16.7s vs 16.7s（0.0%）",
+      "caveat": "两条路径共用同一套延误公式（只是周期推导方式不同），因此本项属于**口径一致性核对**，不构成独立验证；真正的独立验证来自 SUMO 微观仿真（见 docs/03）。"
     },
     {
       "id": "reproducibility",
       "status": "ok",
-      "detail": "seed=20261005 两次生成哈希一致（7a031823412c…），换 seed 后改变",
+      "detail": "seed=20261005：SUMO 车流（1a1c7e62a1f3…）重复生成一致；换 seed 后车流与需求剖面均改变（已排除\"换 seed 无影响\"的实现错误）",
       "hashes": {
-        "first": "7a031823412cdf464b6bca5348655e0e3c742898495e32642d48494e336672be",
-        "second": "7a031823412cdf464b6bca5348655e0e3c742898495e32642d48494e336672be",
-        "otherSeed": "77429e530eb271f34ab1d1c8ed4a6918423a9d3d80844dfef40d638b9ffa57cb"
+        "routes": "1a1c7e62a1f39c180dffdfbc3ecaed127066bac1bd4d19f423dd5795854b3cbf",
+        "routesOtherSeed": "c7154ab189bbc2608819ef125e07523150d7beb5c179f08d8cc3ad74f60b3ff1",
+        "profiles": "7a031823412cdf464b6bca5348655e0e3c742898495e32642d48494e336672be",
+        "profilesOtherSeed": "77429e530eb271f34ab1d1c8ed4a6918423a9d3d80844dfef40d638b9ffa57cb"
+      },
+      "checks": {
+        "routesStable": true,
+        "routesSeedSensitive": true,
+        "profilesSeedSensitive": true
       }
     },
     {

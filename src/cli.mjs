@@ -100,6 +100,10 @@ function verificationMarkdown(verification) {
   lines.push(`- 生成时间：${verification.generatedAt}`)
   lines.push(`- 基准工况：${verification.scenario}`)
   lines.push(`- 总体结论：${verification.status === 'ok' ? '**通过**' : '**未通过**'}（${verification.checks.length} 项检查）`)
+  if (verification.warningCount) {
+    lines.push(`- 警告 ${verification.warningCount} 条（不判定为失败，但需人工确认）：`)
+    for (const warning of verification.warnings ?? []) lines.push(`  - ${warning}`)
+  }
   lines.push('')
   lines.push('## 逐项检查')
   lines.push('')
@@ -107,6 +111,8 @@ function verificationMarkdown(verification) {
   lines.push('| --- | --- | --- |')
   for (const check of verification.checks) {
     lines.push(`| ${check.id} | ${check.status} | ${String(check.detail).replace(/\|/g, '/')} |`)
+    // 口径提醒必须跟着结论走，避免读者把"共用同一套公式的两条路径"误当成独立验证。
+    if (check.caveat) lines.push(`| ${check.id}（口径提醒） | — | ${String(check.caveat).replace(/\|/g, '/')} |`)
   }
   const boundary = verification.checks.find((check) => check.id === 'boundary-conditions')
   if (boundary?.rows?.length) {
@@ -192,7 +198,10 @@ const commands = {
         verificationMarkdown: verificationPath,
       },
       verificationStatus: verification.status,
-    })
+      verificationWarnings: verification.warnings ?? [],
+      // 验证未通过时不得以退出码 0 结束：历史版本无论验证结果如何都返回 0，
+      // 自动化里会把"报告已生成"误读成"验证通过"。
+    }, verification.status === 'ok' ? 0 : 1)
   },
 
   'sumo-check'() {

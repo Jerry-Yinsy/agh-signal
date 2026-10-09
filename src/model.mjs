@@ -107,6 +107,7 @@ export function evaluateDesign(scenario, design) {
       capacity: Number(capacityMovement.toFixed(1)),
       vc: Number(x.toFixed(4)),
       delaySec: Number(delay.toFixed(2)),
+      uniformDelaySec: Number(uniform.toFixed(2)),
       stops: Number((1 - ratio).toFixed(4)),
     })
   }
@@ -116,7 +117,19 @@ export function evaluateDesign(scenario, design) {
   if (ratioSum.NS + ratioSum.EW >= 1) violations.push('总流率比 Y ≥ 1，路口已达过饱和，配时无法解决')
 
   const avgDelaySec = totalVolume > 0 ? totalDelayVehSeconds / totalVolume : 0
-  const avgQueueVeh = movements.reduce((sum, m) => sum + (m.volume / 3600) * m.delaySec, 0)
+
+  // 排队：HCM 均匀延误假设下，车辆在红灯期间到达并按到达率累积，消散期间排空，
+  // 故平均排队 = 到达率 × 平均均匀延误（Little 定律），最大排队 = 到达率 × 红灯时长。
+  // 注意：这里必须用**均匀延误**而不是总延误，也不能用 Σ(q·d)（那是延误车辆秒，量纲是 veh·s/h）。
+  let avgQueueVehicles = 0
+  let maxQueueVehicles = 0
+  for (const movement of movements) {
+    const arrivalRate = movement.volume / 3600
+    const ratio = lambda[movement.phase]
+    avgQueueVehicles += arrivalRate * movement.uniformDelaySec
+    maxQueueVehicles = Math.max(maxQueueVehicles, arrivalRate * cycle * (1 - ratio))
+  }
+
   const stopRate = totalVolume > 0 ? movements.reduce((sum, m) => sum + m.volume * m.stops, 0) / totalVolume : 0
   const occupancy = Number(scenario.occupancy ?? 1.3)
 
@@ -130,8 +143,12 @@ export function evaluateDesign(scenario, design) {
       avgDelaySec: Number(avgDelaySec.toFixed(2)),
       totalDelayVehHours: Number((totalDelayVehSeconds / 3600).toFixed(3)),
       personHours: Number(((totalDelayVehSeconds / 3600) * occupancy).toFixed(3)),
-      avgQueueVeh: Number(avgQueueVeh.toFixed(2)),
-      maxQueueVeh: Number((avgQueueVeh * 2).toFixed(2)),
+      // 排队口径：单位是"辆"。avgQueueVehicles 为全路口各流向平均排队之和，maxQueueVehicles 为最大流向排队。
+      avgQueueVehicles: Number(avgQueueVehicles.toFixed(2)),
+      maxQueueVehicles: Number(maxQueueVehicles.toFixed(2)),
+      // 兼容旧字段名：历史上这两个名字装的是 Σ(q·d)（量纲 veh·s/h）与它的 2 倍，语义错误，勿再使用。
+      avgQueueVeh: Number(avgQueueVehicles.toFixed(2)),
+      maxQueueVeh: Number(maxQueueVehicles.toFixed(2)),
       stopRate: Number(stopRate.toFixed(4)),
       capacityVehPerHour: Number(capacity.toFixed(1)),
       avgVc: Number((totalVolume / Math.max(1e-6, capacity)).toFixed(4)),

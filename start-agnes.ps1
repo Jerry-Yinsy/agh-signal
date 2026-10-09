@@ -5,18 +5,23 @@
 关掉本窗口或按 Ctrl+C 会结束 Web 服务；后台 daemon 需要单独 stop（见文件末尾说明）。
 #>
 param(
-  [switch]$NoBrowser
+  [switch]$NoBrowser,
+  # 默认值保持原作者环境不变；换机器时用参数覆盖，不必改脚本正文。
+  [string]$Repo = 'D:\dev\agnes-project\agnes-harness',
+  [string]$AghHome = 'D:\dev\agnes-project\agh-home',
+  [string]$Profile = 'local-dev',
+  [string]$ProjectDir = 'D:\dev\agnes-project\agh-signal'
 )
 
 $ErrorActionPreference = 'Stop'
 
-# ---- 路径配置（按你的实际位置改） ----
-$repo = 'D:\dev\agnes-project\agnes-harness'
+# ---- 路径配置：优先取命令行参数，未传则用上面的默认值 ----
+$repo = $Repo
 $entry = Join-Path $repo 'packages\cli\dist\local\agnes.mjs'
-$env:AGH_HOME = 'D:\dev\agnes-project\agh-home'
-$env:AGNES_PROFILE = 'local-dev'
-$env:AGH_SIGNAL_HOME = 'D:\dev\agnes-project\agh-signal'
-# -------------------------------------
+$env:AGH_HOME = $AghHome
+$env:AGNES_PROFILE = $Profile
+$env:AGH_SIGNAL_HOME = $ProjectDir
+# ----------------------------------------------------------
 
 if (-not (Test-Path -LiteralPath $entry)) {
   throw "找不到 AGH 入口文件：$entry（源码是否还在？是否已执行过 build:local？）"
